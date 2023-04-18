@@ -1,0 +1,146 @@
+Introduction
+
+The "Eiffel Protocol" in Jenkins refers to a set of guidelines and best practices for integrating and managing software changes in a Jenkins-based continuous integration and continuous delivery (CI/CD) pipeline. It is named after the iconic Eiffel Tower in Paris, France, known for its strong and sturdy structure, to reflect the robustness and reliability of the protocol.
+
+In simple terms, the Eiffel Protocol in Jenkins provides a standardized approach for managing changes to software applications as they are built, tested, and deployed using Jenkins. It includes a set of conventions and rules for how software changes are documented, tracked, and communicated within a Jenkins pipeline, with the goal of improving collaboration and traceability among development, testing, and operations teams.
+
+The Eiffel Protocol typically involves the following key components:
+
+(i)Eiffel Events: These are standard events that are generated and sent by various tools in the CI/CD pipeline, such as code repositories, build systems, and testing frameworks, to provide detailed information about software changes and their status.
+
+(ii)Eiffel Artifacts: These are the software artifacts, such as build artifacts, test results, and deployment packages, that are produced by the pipeline and associated with Eiffel Events. Artifacts provide a tangible representation of the software changes and serve as the basis for further actions in the pipeline.
+
+(iii)Eiffel Flow: This is the overall flow and structure of the CI/CD pipeline, which is defined using Eiffel Events and Artifacts to ensure consistent and traceable handling of software changes. The Eiffel Flow typically includes stages such as build, test, deploy, and promote, with corresponding Eiffel Events and Artifacts used to trigger and track the progress of changes through the pipeline.
+
+By following the Eiffel Protocol in Jenkins, development teams can achieve better visibility, traceability, and collaboration across the entire CI/CD pipeline, leading to more reliable and efficient software delivery processes.
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Rabbit MQ
+
+
+sudo apt update -y
+
+sudo apt upgrade -y
+
+sudo apt install rabbitmq-server
+
+systemctl status rabbitmq-server.service
+
+systemctl is-enabled rabbitmq-server.service 
+
+sudo rabbitmq-plugins enable rabbitmq_management
+
+sudo ss -tunelp | grep 15672
+
+sudo ufw allow proto tcp from any to any port 5672,15672
+
+http:// public ip : 15672
+
+sudo rabbitmqctl add_user admin admin
+
+sudo rabbitmqctl set_user_tags admin administrator
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Jenkins pipeline that sends messages into RabbitMQ 
+
+
+
+
+pipeline {
+  agent any
+  
+  stages {
+    stage('Job Starts') {
+      steps {
+        echo 'Job has started'
+        script {
+          def eiffelEvent = createEiffelEvent('STARTED')
+          sendEiffelEvent(eiffelEvent)
+        }
+      }
+    }
+    
+    stage('Job Finishes') {
+      steps {
+        echo 'Job has finished'
+        script {
+          def eiffelEvent = createEiffelEvent('FINISHED')
+          sendEiffelEvent(eiffelEvent)
+        }
+      }
+    }
+    
+    stage('Job Successful') {
+      steps {
+        echo 'Job was successful'
+        script {
+          def eiffelEvent = createEiffelEvent('SUCCESSFUL')
+          sendEiffelEvent(eiffelEvent)
+        }
+      }
+    }
+    
+    stage('Job Unstable') {
+      steps {
+        echo 'Job is unstable'
+        script {
+          def eiffelEvent = createEiffelEvent('UNSTABLE')
+          sendEiffelEvent(eiffelEvent)
+        }
+      }
+    }
+    
+    stage('Job Failed') {
+      steps {
+        echo 'Job has failed'
+        script {
+          def eiffelEvent = createEiffelEvent('FAILED')
+          sendEiffelEvent(eiffelEvent)
+        }
+      }
+    }
+  }
+}
+
+def createEiffelEvent(String eventName) {
+  def event = [:]
+  event.meta = [:]
+  event.meta.version = '4.0.0'
+  event.meta.type = 'EVENT'
+  
+  def data = [:]
+  data.name = eventName
+  data.time = new Date().toString() // Add timestamp to event data
+  
+  event.data = data
+  
+  return event
+}
+
+def sendEiffelEvent(def event) {
+  withCredentials([usernamePassword(credentialsId: 'RabbitMQ', usernameVariable: 'RABBITMQ_USERNAME', passwordVariable: 'RABBITMQ_PASSWORD')]) {
+    def eventJson = event.data.name
+    sh """curl -sL -X POST -H 'Content-Type: application/json' -u $RABBITMQ_USERNAME:$RABBITMQ_PASSWORD -d '{"properties":{},"routing_key":"demo","payload":"'"${eventJson}"'","payload_encoding":"string"}' http://3.22.194.89:15672/api/exchanges/jenkins/amq.default/publish"""
+  }
+}
+
+
+
+
+Queue name is demo
+Virtual host jenkins
+User name and password is admin admin
+
+
+
+
+
+
+
+
+
+
+
+
